@@ -1,6 +1,7 @@
 import 'dart:io';
+import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:pet_app/pages/updated_list.dart';
 
@@ -12,11 +13,12 @@ class PetHomePage extends StatefulWidget {
 }
 
 class _PetHomePageState extends State<PetHomePage> {
-  String? _filePath;
-  String? _fileName;
+  File? _imageFile;
   final TextEditingController _petNameController = TextEditingController();
   final TextEditingController _ownerNameController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
+  final TextEditingController _additionalNotesController =
+      TextEditingController();
   String? _petType;
   String? _gender;
 
@@ -51,94 +53,79 @@ class _PetHomePageState extends State<PetHomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Pet Name
               _buildLabel('Your pet name', textScale),
-              const SizedBox(height: 5),
-              TextField(
-                controller: _petNameController,
-                decoration: _buildInputDecoration(
-                  'Enter your pet name',
-                  _petNameError,
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Pet Owner
-              _buildLabel('Your pet owner', textScale),
-              const SizedBox(height: 5),
-              TextField(
-                controller: _ownerNameController,
-                decoration: _buildInputDecoration(
-                  'Enter your name',
-                  _ownerNameError,
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Pet Type Dropdown
+              _buildTextField(_petNameController, 'ex. Bella', _petNameError),
+              _buildLabel('Your pet owner name', textScale),
+              _buildTextField(
+                  _ownerNameController, 'Enter your name', _ownerNameError),
               _buildLabel('Type of Pet', textScale),
-              const SizedBox(height: 5),
-              DropdownButtonFormField<String>(
-                items: const [
-                  DropdownMenuItem(value: 'Dog', child: Text('Dog')),
-                  DropdownMenuItem(value: 'Cat', child: Text('Cat')),
-                  DropdownMenuItem(value: 'Bird', child: Text('Bird')),
-                ],
+              _buildDropdown(
+                items: const ['Dog', 'Cat', 'Bird'],
+                hint: 'ex. Dog',
                 onChanged: (value) => setState(() => _petType = value),
-                decoration: _buildInputDecoration('Pet', _petTypeError),
+                hasError: _petTypeError,
               ),
-              const SizedBox(height: 16),
-
-              // Gender Dropdown
               _buildLabel('Gender', textScale),
-              const SizedBox(height: 5),
-              DropdownButtonFormField<String>(
-                items: const [
-                  DropdownMenuItem(value: 'Male', child: Text('Male')),
-                  DropdownMenuItem(value: 'Female', child: Text('Female')),
-                ],
+              _buildDropdown(
+                items: const ['Male', 'Female'],
+                hint: 'ex. Male',
                 onChanged: (value) => setState(() => _gender = value),
-                decoration: _buildInputDecoration('Gender', _genderError),
+                hasError: _genderError,
               ),
-              const SizedBox(height: 16),
-
-              // Pet Location
-              _buildLabel('Enter pet Location', textScale),
-              const SizedBox(height: 5),
-              TextField(
-                controller: _locationController,
-                decoration: _buildInputDecoration(
-                  'Enter pet location',
-                  _locationError,
+              _buildLabel('Enter pet location', textScale),
+              _buildTextField(
+                  _locationController, 'Enter pet location', _locationError),
+              _buildLabel('Additional Notes', textScale),
+              _buildTextField(_additionalNotesController,
+                  'Add additional details here...', false,
+                  maxLines: 3),
+              _buildLabel('Add your pet profile picture and upload pet photos',
+                  textScale),
+              Center(
+                child: GestureDetector(
+                  onTap: _pickImage,
+                  child: DottedBorder(
+                    color: Colors.grey[300]!,
+                    borderType: BorderType.RRect,
+                    radius: const Radius.circular(15),
+                    dashPattern: const [5, 5],
+                    child: Container(
+                      height: 100, // Reduced height
+                      width: screenWidth * 0.7, // Increased width
+                      alignment: Alignment.center,
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.upload_file, size: 30, color: Colors.blue),
+                          SizedBox(height: 5),
+                          Text('Upload Photos',
+                              style: TextStyle(
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // Upload Photos
-              ElevatedButton.icon(
-                onPressed: _pickFile,
-                icon: const Icon(
-                  Icons.upload_file,
-                  color: Color.fromARGB(255, 96, 182, 252),
-                ),
-                label: const Text('Upload Photos'),
-              ),
-              if (_filePath != null) ...[
+              if (_imageFile != null) ...[
                 const SizedBox(height: 16),
-                Image.file(File(_filePath!), height: 200, fit: BoxFit.cover),
-                Text('File Name: $_fileName'),
+                Image.file(_imageFile!, height: 200, fit: BoxFit.cover),
               ],
               const SizedBox(height: 16),
-
-              // Submit Button
-              ElevatedButton(
-                onPressed: _submitForm,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: Size(screenWidth, 50),
-                  backgroundColor: Colors.yellow,
-                  foregroundColor: Colors.black,
+              Center(
+                child: ElevatedButton(
+                  onPressed: _submitForm,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: Size(screenWidth, 45),
+                    backgroundColor: Colors.yellow,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text('Submit'),
                 ),
-                child: const Text('Submit'),
               ),
             ],
           ),
@@ -150,38 +137,78 @@ class _PetHomePageState extends State<PetHomePage> {
   InputDecoration _buildInputDecoration(String hintText, bool hasError) {
     return InputDecoration(
       hintText: hintText,
+      contentPadding:
+          const EdgeInsets.symmetric(vertical: 12, horizontal: 16), // Adjusted
       filled: true,
-      fillColor: const Color.fromARGB(255, 230, 228, 228),
-      border: const OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(20)),
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(20)),
+        borderSide: BorderSide(color: Colors.grey[300]!), // Light grey border
       ),
       focusedBorder: OutlineInputBorder(
-        borderSide: BorderSide(
-          color:
-              hasError ? Colors.red : const Color.fromARGB(255, 230, 228, 228),
-          width: 2,
-        ),
         borderRadius: const BorderRadius.all(Radius.circular(20)),
+        borderSide: BorderSide(color: Colors.grey[400]!),
+      ),
+      errorBorder: const OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(20)),
+        borderSide: BorderSide(color: Colors.red),
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+      TextEditingController controller, String hintText, bool hasError,
+      {int maxLines = 1}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: TextField(
+        controller: controller,
+        maxLines: maxLines,
+        decoration: _buildInputDecoration(hintText, hasError),
       ),
     );
   }
 
   Widget _buildLabel(String text, double textScale) {
-    return Text(
-      text,
-      style: TextStyle(fontSize: 14 * textScale, fontWeight: FontWeight.bold),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 12 * textScale, fontWeight: FontWeight.bold),
+      ),
     );
   }
 
-  Future<void> _pickFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'docx'],
+  Widget _buildDropdown({
+    required List<String> items,
+    required String hint,
+    required Function(String?) onChanged,
+    required bool hasError,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: DropdownButtonFormField<String>(
+        items: items
+            .map((item) => DropdownMenuItem<String>(
+                  value: item,
+                  child: Text(item),
+                ))
+            .toList(),
+        onChanged: onChanged,
+        decoration: _buildInputDecoration(hint, hasError),
+        dropdownColor: Colors.white, // Background set to white
+      ),
     );
-    if (result != null) {
+  }
+
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? pickedFile =
+        await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
       setState(() {
-        _filePath = result.files.single.path;
-        _fileName = result.files.single.name;
+        _imageFile = File(pickedFile.path);
         _fileError = false;
       });
     }
@@ -194,7 +221,7 @@ class _PetHomePageState extends State<PetHomePage> {
       _locationError = _locationController.text.isEmpty;
       _petTypeError = _petType == null;
       _genderError = _gender == null;
-      _fileError = _filePath == null;
+      _fileError = _imageFile == null;
     });
 
     if (_petNameError ||
@@ -215,10 +242,10 @@ class _PetHomePageState extends State<PetHomePage> {
       ..fields['pet_type'] = _petType!
       ..fields['gender'] = _gender!
       ..fields['location'] = _locationController.text
+      ..fields['notes'] = _additionalNotesController.text
       ..files.add(await http.MultipartFile.fromPath(
         'image',
-        _filePath!,
-        filename: _fileName,
+        _imageFile!.path,
       ));
 
     var response = await request.send();
@@ -238,9 +265,7 @@ class _PetHomePageState extends State<PetHomePage> {
           content: Text(message),
           actions: <Widget>[
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(context).pop(),
               child: const Text('OK'),
             ),
           ],
